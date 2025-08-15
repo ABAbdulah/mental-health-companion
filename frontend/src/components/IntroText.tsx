@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 
 const texts = [
-  "Hi, I'm Abdullah's personal chatbot.",
-  "Ask me anything about Abdullah!",
-  "Your questions, my answers — instantly."
+  "Hi there, I'm SerenityBot 🌸",
+  "Ready to listen without judgment.",
+  "How are you feeling right now?"
 ];
 
 export default function IntroText() {
@@ -35,7 +35,7 @@ export default function IntroText() {
   return (
     <div className="flex flex-col items-center justify-center h-full text-center">
       {/* Fixed Title */}
-      <h1 className="text-3xl font-bold mb-4 text-blue-600">AskAbdullah :)</h1>
+      <h1 className="text-3xl font-bold mb-4 text-green-600">SerenityBot 🌱</h1>
 
       {/* Completed lines */}
       {lines.map((line, i) => (

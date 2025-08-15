@@ -59,7 +59,7 @@ export default function Chat() {
                 <div
                   className={`p-2 rounded-lg max-w-lg ${
                     m.role === "user"
-                      ? "bg-blue-500 text-white"
+                      ? "bg-green-200 text-black"
                       : "bg-gray-200 text-black"
                   }`}
                 >
@@ -92,7 +92,7 @@ export default function Chat() {
           onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
         />
         <button
-          className="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600 transition flex items-center justify-center"
+          className="bg-green-500 text-white p-2 rounded-full hover:bg-green-700 transition flex items-center justify-center"
           onClick={handleSendMessage}
         >
           <svg
