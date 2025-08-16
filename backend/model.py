@@ -1,39 +1,26 @@
 import ollama
 import sqlite3
 import os
-import requests
 import json
 import random
 
 # -------------------------
-# Mental Health Dataset Integration
+# Mental Health Dataset Integration (FAST - NO EXTERNAL CALLS)
 # -------------------------
 class MentalHealthDataset:
     def __init__(self):
-        self.base_url = "https://datasets-server.huggingface.co/rows"
-        self.dataset = "marmikpandya%2Fmental-health"
-        self.responses = []
-        self.load_responses()
-    
-    def load_responses(self):
-        """Load mental health responses from HuggingFace dataset"""
-        try:
-            url = f"{self.base_url}?dataset={self.dataset}&config=default&split=train&offset=0&length=200"
-            response = requests.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                self.responses = data.get('rows', [])
-                print(f"Loaded {len(self.responses)} responses from mental health dataset")
-        except Exception as e:
-            print(f"Error loading dataset: {e}")
-            # Fallback responses
-            self.responses = []
+        self.responses = [
+            {"row": {"text": "I understand you're going through a difficult time. It's okay to feel overwhelmed sometimes."}},
+            {"row": {"text": "Your feelings are valid, and it takes courage to reach out for support."}},
+            {"row": {"text": "Remember that you're not alone in this journey. Many people face similar challenges."}},
+            {"row": {"text": "It's important to be gentle with yourself during tough times."}},
+            {"row": {"text": "Taking one small step at a time can make a big difference in how you feel."}},
+        ]
     
     def get_relevant_response(self, user_message):
         """Get contextually relevant response from dataset"""
         user_message_lower = user_message.lower()
         
-        # Mental health keywords to trigger dataset responses
         mental_health_keywords = [
             'sad', 'depressed', 'anxious', 'worried', 'stressed', 'lonely', 
             'angry', 'frustrated', 'overwhelmed', 'hopeless', 'tired', 
@@ -42,11 +29,8 @@ class MentalHealthDataset:
             'therapy', 'counseling', 'mental health', 'feeling'
         ]
         
-        # Check if message contains mental health keywords
         if any(keyword in user_message_lower for keyword in mental_health_keywords):
-            if self.responses:
-                return random.choice(self.responses)
-        
+            return random.choice(self.responses)
         return None
 
 # -------------------------
@@ -74,15 +58,13 @@ For mental health topics:
 Remember: You ONLY do mental health support. Nothing else."""
 
 # -------------------------
-# SQLite Database Setup (Enhanced for Mental Health)
+# SQLite Database Setup
 # -------------------------
 DB_PATH = os.path.join(os.path.dirname(__file__), "chat.db")
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
-    # Enhanced messages table with timestamp
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,18 +74,6 @@ def init_db():
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    
-    # Mood tracking table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS mood_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id TEXT,
-            mood_score INTEGER,
-            mood_description TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    
     conn.commit()
     conn.close()
 
@@ -117,8 +87,7 @@ def save_message(session_id, role, content):
     conn.commit()
     conn.close()
 
-def get_history(session_id, limit=10):
-    """Get recent conversation history"""
+def get_history(session_id, limit=6):  # Reduced history for faster processing
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
@@ -127,25 +96,25 @@ def get_history(session_id, limit=10):
     )
     rows = cursor.fetchall()
     conn.close()
-    # Reverse to get chronological order
     return [{"role": r[0], "content": r[1]} for r in reversed(rows)]
 
-def log_mood(session_id, mood_score, mood_description=""):
-    """Log user mood for tracking"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO mood_logs (session_id, mood_score, mood_description) VALUES (?, ?, ?)",
-        (session_id, mood_score, mood_description)
-    )
-    conn.commit()
-    conn.close()
+# -------------------------
+# Global dataset instance
+# -------------------------
+_dataset_instance = None
+
+def get_dataset():
+    global _dataset_instance
+    if _dataset_instance is None:
+        _dataset_instance = MentalHealthDataset()
+    return _dataset_instance
 
 # -------------------------
-# Enhanced AI Logic for Mental Health
+# STREAMING AI Logic (THE FIX)
 # -------------------------
-def ask_model(session_id, query):
-    dataset = MentalHealthDataset()
+def ask_model_stream(session_id, query):
+    """STREAMING version that yields chunks as they come"""
+    dataset = get_dataset()
     save_message(session_id, "user", query)
     relevant_response = dataset.get_relevant_response(query)
     history = get_history(session_id)
@@ -165,24 +134,40 @@ Context from mental health database:
 Crisis response: If someone mentions self-harm or suicide, immediately encourage them to contact 988 Suicide & Crisis Lifeline or emergency services.
 """
 
-    # Prepare messages for AI model
     messages = [{"role": "system", "content": system_prompt}] + history
     
     try:
-        # Get response from Ollama
-        response = ollama.chat(model="llama3", messages=messages)
-        answer = response["message"]["content"]
-        stream=True 
-        # Save AI response
-        save_message(session_id, "assistant", answer)
+        # STREAMING OLLAMA CALL - This is the key fix
+        full_response = ""
+        stream = ollama.chat(
+            model="llama3", 
+            messages=messages, 
+            stream=True  # ENABLE STREAMING
+        )
         
-        return answer
+        for chunk in stream:
+            content = chunk['message']['content']
+            full_response += content
+            yield content  # Yield each chunk immediately
+        
+        # Save complete response after streaming
+        save_message(session_id, "assistant", full_response)
     
     except Exception as e:
         print(f"Error with AI model: {e}")
-        fallback_response = "I'm having some technical difficulties right now, but I want you to know that I'm here for you. If you're going through a tough time and need immediate support, please consider reaching out to a mental health professional or crisis helpline. Is there anything specific you'd like to talk about?"
-        save_message(session_id, "assistant", fallback_response)
-        return fallback_response
+        fallback = "I'm having some technical difficulties right now, but I want you to know that I'm here for you."
+        save_message(session_id, "assistant", fallback)
+        yield fallback
+
+# -------------------------
+# Non-streaming version (backward compatibility)
+# -------------------------
+def ask_model(session_id, query):
+    """Non-streaming version"""
+    full_response = ""
+    for chunk in ask_model_stream(session_id, query):
+        full_response += chunk
+    return full_response
 
 # Initialize database when module is imported
 init_db()

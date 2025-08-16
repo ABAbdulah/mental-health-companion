@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
-import { sendChatMessage } from "../axios/chatService";
+import { sendChatMessage, sendChatMessageStream } from "../axios/chatService";
 import IntroText from "./IntroText";
 import { v4 as uuidv4 } from "uuid"; // for generating unique session ids
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+  isStreaming?: boolean;
 }
 
 export default function Chat() {
@@ -27,19 +28,90 @@ export default function Chat() {
   }, [messages, loading]);
 
   const handleSendMessage = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || loading) return;
 
+    // Add user message
     setMessages((prev) => [...prev, { role: "user", content: input }]);
     const userInput = input;
     setInput("");
     setLoading(true);
 
+    // Add empty assistant message for streaming
+    const assistantMessageIndex = messages.length + 1;
+    setMessages((prev) => [
+      ...prev,
+      { role: "assistant", content: "", isStreaming: true }
+    ]);
+
     try {
-      const answer = await sendChatMessage(sessionId, userInput);
-      setMessages((prev) => [...prev, { role: "assistant", content: answer }]);
+      let fullResponse = "";
+      
+      await sendChatMessageStream(
+        sessionId,
+        userInput,
+        // onChunk - this fires for each word/chunk
+        (chunk: string) => {
+          fullResponse += chunk;
+          setMessages((prev) => {
+            const newMessages = [...prev];
+            if (newMessages[assistantMessageIndex]) {
+              newMessages[assistantMessageIndex] = {
+                ...newMessages[assistantMessageIndex],
+                content: fullResponse,
+                isStreaming: true
+              };
+            }
+            return newMessages;
+          });
+        },
+        // onComplete
+        () => {
+          setMessages((prev) => {
+            const newMessages = [...prev];
+            if (newMessages[assistantMessageIndex]) {
+              newMessages[assistantMessageIndex] = {
+                ...newMessages[assistantMessageIndex],
+                isStreaming: false
+              };
+            }
+            return newMessages;
+          });
+          setLoading(false);
+        },
+        // onError - fallback to non-streaming
+        async (error) => {
+          console.error("Streaming failed:", error);
+          try {
+            const answer = await sendChatMessage(sessionId, userInput);
+            setMessages((prev) => {
+              const newMessages = [...prev];
+              if (newMessages[assistantMessageIndex]) {
+                newMessages[assistantMessageIndex] = {
+                  role: "assistant",
+                  content: answer,
+                  isStreaming: false
+                };
+              }
+              return newMessages;
+            });
+          } catch (fallbackError) {
+            setMessages((prev) => {
+              const newMessages = [...prev];
+              if (newMessages[assistantMessageIndex]) {
+                newMessages[assistantMessageIndex] = {
+                  role: "assistant",
+                  content: "I'm sorry, I'm having technical difficulties. Please try again.",
+                  isStreaming: false
+                };
+              }
+              return newMessages;
+            });
+          }
+          setLoading(false);
+        }
+      );
     } catch (err) {
-      console.error(err);
-    } finally {
+      console.error("Error:", err);
       setLoading(false);
     }
   };
@@ -57,26 +129,26 @@ export default function Chat() {
                 className={`flex w-full ${m.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`p-2 rounded-lg max-w-lg ${
+                  className={`p-2 rounded-lg max-w-lg relative ${
                     m.role === "user"
                       ? "bg-green-200 text-black"
                       : "bg-gray-200 text-black"
                   }`}
                 >
                   <ReactMarkdown>{m.content}</ReactMarkdown>
+                  {/* Show typing indicator ONLY when streaming but no content yet */}
+                  {m.isStreaming && m.content.trim() === "" && (
+                    <div className="flex items-center mt-1">
+                      <div className="flex gap-1">
+                        <span className="animate-bounce text-xs">.</span>
+                        <span className="animate-bounce text-xs [animation-delay:0.2s]">.</span>
+                        <span className="animate-bounce text-xs [animation-delay:0.4s]">.</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
-
-            {loading && (
-              <div className="flex justify-start">
-                <div className="bg-gray-200 text-gray-600 px-3 py-2 rounded-lg flex gap-1">
-                  <span className="animate-bounce">.</span>
-                  <span className="animate-bounce [animation-delay:0.2s]">.</span>
-                  <span className="animate-bounce [animation-delay:0.4s]">.</span>
-                </div>
-              </div>
-            )}
           </>
         )}
         <div ref={messagesEndRef} />
@@ -90,25 +162,35 @@ export default function Chat() {
           onChange={(e) => setInput(e.target.value)}
           placeholder="Type your message..."
           onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+          disabled={loading}
         />
         <button
-          className="bg-green-500 text-white p-2 rounded-full hover:bg-green-700 transition flex items-center justify-center"
+          className={`p-2 rounded-full transition flex items-center justify-center ${
+            loading 
+              ? "bg-gray-400 cursor-not-allowed" 
+              : "bg-green-500 hover:bg-green-700 text-white"
+          }`}
           onClick={handleSendMessage}
+          disabled={loading}
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M5 12h14" />
-            <path d="m12 5 7 7-7 7" />
-          </svg>
+          {loading ? (
+            <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+          ) : (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 12h14" />
+              <path d="m12 5 7 7-7 7" />
+            </svg>
+          )}
         </button>
       </div>
     </div>

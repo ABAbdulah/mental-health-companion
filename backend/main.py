@@ -1,11 +1,13 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import shutil
 import os
+import json
 
 from scripts.ingest import process_pdf
-from backend.model import ask_model
+from backend.model import ask_model, ask_model_stream
 
 app = FastAPI()
 
@@ -36,7 +38,7 @@ def status():
 @app.get("/ask")
 def ask(session_id: str, query: str):
     """
-    Simple GET-based query to the chatbot.
+    Simple GET-based query to the chatbot (non-streaming).
     """
     answer = ask_model(session_id, query)
     return {"answer": answer}
@@ -57,7 +59,21 @@ async def ingest(file: UploadFile = File(...)):
 @app.post("/chat")
 def chat(req: ChatRequest):
     """
-    POST-based chat endpoint for conversation memory.
+    POST-based chat endpoint for conversation memory (non-streaming).
     """
     answer = ask_model(req.session_id, req.question)
     return {"answer": answer}
+
+@app.post("/chat/stream")
+def chat_stream(req: ChatRequest):
+    """
+    Streaming chat endpoint - sends chunks as they arrive
+    """
+    def generate():
+        for chunk in ask_model_stream(req.session_id, req.question):
+            yield chunk
+    
+    return StreamingResponse(
+        generate(),
+        media_type="text/plain"
+    )
