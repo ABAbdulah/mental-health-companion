@@ -1,10 +1,9 @@
 # mental-health-companion
 An AI-powered mental health chatbot that provides empathetic support and resources for mental wellness. Built with Python, Ollama, and mental health datasets
 # See the demo here: 
-https://youtu.be/IZKrpA9vvkA?si=XLXiGrWFnDBsgot2
+Demo Video: https://youtu.be/IZKrpA9vvkA?si=XLXiGrWFnDBsgot2
 ##
 ## BUILD PROCESS
-##
 git clone https://github.com/ABAbdulah/mental-health-companion.git
 
 cd mental-health-companion
