@@ -7,7 +7,7 @@ from chromadb.utils import embedding_functions
 # ===== Config =====
 DATA_DIR = "data"
 DB_DIR = "db"
-CHUNK_SIZE = 500  # tokens/words
+CHUNK_SIZE = 500
 CHUNK_OVERLAP = 100
 
 # ===== Helper: Split text into chunks =====

@@ -16,7 +16,6 @@ export const sendChatMessage = async (sessionId: string, question: string): Prom
   }
 };
 
-// STREAMING CHAT FUNCTION
 export const sendChatMessageStream = async (
   sessionId: string, 
   question: string,

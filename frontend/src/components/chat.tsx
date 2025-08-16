@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { sendChatMessage, sendChatMessageStream } from "../axios/chatService";
 import IntroText from "./IntroText";
-import { v4 as uuidv4 } from "uuid"; // for generating unique session ids
+import { v4 as uuidv4 } from "uuid";
 
 interface Message {
   role: "user" | "assistant";
@@ -15,8 +15,6 @@ export default function Chat() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-
-  // generate a session id for this browser session
   const [sessionId] = useState<string>(() => uuidv4());
 
   const scrollToBottom = () => {
@@ -30,13 +28,11 @@ export default function Chat() {
   const handleSendMessage = async () => {
     if (!input.trim() || loading) return;
 
-    // Add user message
     setMessages((prev) => [...prev, { role: "user", content: input }]);
     const userInput = input;
     setInput("");
     setLoading(true);
 
-    // Add empty assistant message for streaming
     const assistantMessageIndex = messages.length + 1;
     setMessages((prev) => [
       ...prev,
@@ -49,7 +45,7 @@ export default function Chat() {
       await sendChatMessageStream(
         sessionId,
         userInput,
-        // onChunk - this fires for each word/chunk
+
         (chunk: string) => {
           fullResponse += chunk;
           setMessages((prev) => {
@@ -64,7 +60,7 @@ export default function Chat() {
             return newMessages;
           });
         },
-        // onComplete
+
         () => {
           setMessages((prev) => {
             const newMessages = [...prev];
@@ -78,7 +74,7 @@ export default function Chat() {
           });
           setLoading(false);
         },
-        // onError - fallback to non-streaming
+
         async (error) => {
           console.error("Streaming failed:", error);
           try {
@@ -136,7 +132,6 @@ export default function Chat() {
                   }`}
                 >
                   <ReactMarkdown>{m.content}</ReactMarkdown>
-                  {/* Show typing indicator ONLY when streaming but no content yet */}
                   {m.isStreaming && m.content.trim() === "" && (
                     <div className="flex items-center mt-1">
                       <div className="flex gap-1">
@@ -154,7 +149,6 @@ export default function Chat() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input and send button in one rounded container */}
       <div className="flex items-center border rounded-full p-1 px-2 mt-2 bg-white">
         <input
           className="flex-1 p-3 rounded-full outline-none border-none"

@@ -3,10 +3,7 @@ import sqlite3
 import os
 import json
 import random
-
-# -------------------------
-# Mental Health Dataset Integration (FAST - NO EXTERNAL CALLS)
-# -------------------------
+ 
 class MentalHealthDataset:
     def __init__(self):
         self.responses = [
@@ -87,7 +84,7 @@ def save_message(session_id, role, content):
     conn.commit()
     conn.close()
 
-def get_history(session_id, limit=6):  # Reduced history for faster processing
+def get_history(session_id, limit=6): 
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
@@ -137,20 +134,18 @@ Crisis response: If someone mentions self-harm or suicide, immediately encourage
     messages = [{"role": "system", "content": system_prompt}] + history
     
     try:
-        # STREAMING OLLAMA CALL - This is the key fix
         full_response = ""
         stream = ollama.chat(
             model="llama3", 
             messages=messages, 
-            stream=True  # ENABLE STREAMING
+            stream=True
         )
         
         for chunk in stream:
             content = chunk['message']['content']
             full_response += content
-            yield content  # Yield each chunk immediately
+            yield content
         
-        # Save complete response after streaming
         save_message(session_id, "assistant", full_response)
     
     except Exception as e:
@@ -169,5 +164,4 @@ def ask_model(session_id, query):
         full_response += chunk
     return full_response
 
-# Initialize database when module is imported
 init_db()

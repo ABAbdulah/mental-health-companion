@@ -52,7 +52,6 @@ async def ingest(file: UploadFile = File(...)):
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # Process and store in vector DB
     process_pdf(file_path)
     return {"status": "Ingested", "file": file.filename}
 
