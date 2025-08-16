@@ -7,8 +7,8 @@ git clone https://github.com/ABAbdulah/mental-health-companion.git
 cd mental-health-companion
 ## For Backend. 
 python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
+# venv\Scripts\activate
+### pip install -r requirements.txt
 uvicorn backend.main:app --reload
 
 ## For Frontend
